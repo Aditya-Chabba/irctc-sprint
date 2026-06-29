@@ -83,3 +83,59 @@ Occurs in 15–25% of sessions involving seat map interaction; higher on mobile 
 Steps 3–5: Seat selection state isn't passed correctly between the seat map component and the passenger form. On mobile, a re-render also clears local state.
 
 ---
+
+## Problem 4: Booking/Ticket History Inaccessible Without Login — No Feedback [Self-Discovered]
+
+**How I found it:**
+While exploring IRCTC without logging in, I tried to access ticket/booking-related information directly. Nothing happened on screen — no redirect to a login page, no error message, no prompt explaining that login was required.
+
+**What is broken:**
+When an unauthenticated user attempts to access a feature that requires login (like booking history), the system fails silently. There is no visual feedback, no redirect, and no explanation — the page simply does not respond, leaving the user unsure if the click registered, if the page is broken, or if they're missing a step.
+
+**Affected users:**
+First-time visitors and users who land on the page from a shared link or bookmark without an active session — likely a significant share of new/casual users exploring the platform before deciding to register.
+
+**Frequency:**
+Observed consistently (100% of attempts) when not logged in and attempting to access account-gated features.
+
+**Current flow — step by step:**
+1. User opens irctc.co.in without logging in
+2. User navigates to a ticket/booking-related section
+3. User clicks the relevant option (e.g. view booking/ticket details)
+4. Page does not redirect, does not show an error, and does not prompt for login
+5. User clicks again, assuming it didn't register
+6. User remains on the same screen with no indication of what to do next
+7. User must independently realize they need to log in and navigate back to find the login option
+
+**Where exactly it breaks:**
+Step 4: The system has no guard-rail messaging or redirect logic for unauthenticated access to gated features. Instead of a clear "Please login to continue" prompt, the request fails silently.
+
+---
+
+## Problem 5: Changing Class/Quota Does Not Refresh Availability or Seat Map [Self-Discovered]
+
+**How I found it:**
+After logging in, while checking seat selection/availability for a train, I changed the class or quota option to compare alternatives. The page state did not update to reflect the new selection.
+
+**What is broken:**
+When a user switches class or quota on the seat selection/availability screen, the displayed information (fare, seat availability, seat map) does not refresh. The screen continues showing data for the previously selected class/quota, giving the user inaccurate information without any indication that a refresh is needed.
+
+**Affected users:**
+Any user comparing options before booking — particularly users trying to find an available class/quota combination when their first choice is waitlisted, a very common scenario during high-demand travel periods.
+
+**Frequency:**
+Observed consistently in this session — every attempt to switch class/quota produced no visible update, suggesting a high failure rate rather than an intermittent one.
+
+**Current flow — step by step:**
+1. User logs in and navigates to a train's seat selection/availability screen
+2. Page loads showing seat map/availability for the default class and quota
+3. User selects a different class from the dropdown
+4. Page remains visually unchanged — same seat map, same fare, same availability numbers
+5. User assumes the click didn't register and clicks the dropdown again
+6. User selects quota change as well — still no visible update
+7. User cannot tell whether the system registered the change at all
+
+**Where exactly it breaks:**
+Step 4: The class/quota selection event does not trigger a re-fetch or re-render of the availability/seat data. The UI state is stuck on the initial load, so the user has no reliable way to compare options without manually reloading the entire page.
+
+---
