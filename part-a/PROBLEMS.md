@@ -84,58 +84,97 @@ Steps 3–5: Seat selection state isn't passed correctly between the seat map co
 
 ---
 
-## Problem 4: Booking/Ticket History Inaccessible Without Login — No Feedback [Self-Discovered]
+## Problem 4: Logged-Out Users Get No Feedback When Searching for Trains [Self-Discovered]
 
 **How I found it:**
-While exploring IRCTC without logging in, I tried to access ticket/booking-related information directly. Nothing happened on screen — no redirect to a login page, no error message, no prompt explaining that login was required.
+While logged out, I went to the homepage search form, entered "Chandigarh" and "Mumbai Central" as source/destination, selected a date and class, then clicked "Search Trains." The station names were accepted and displayed correctly in the input fields, but clicking Search Trains produced no result, no page navigation, no error message, and no loading indicator.
 
 **What is broken:**
-When an unauthenticated user attempts to access a feature that requires login (like booking history), the system fails silently. There is no visual feedback, no redirect, and no explanation — the page simply does not respond, leaving the user unsure if the click registered, if the page is broken, or if they're missing a step.
+The train search action does not respond at all when triggered by a logged-out user. The form fields work fine (autocomplete, date picker, class dropdown all function), but submitting the search silently does nothing — no redirect to results, no login prompt, no error.
 
 **Affected users:**
-First-time visitors and users who land on the page from a shared link or bookmark without an active session — likely a significant share of new/casual users exploring the platform before deciding to register.
+Any first-time or logged-out visitor trying to check train options before creating an account — a very common pattern, since users typically want to see if trains/seats exist before bothering to register.
 
 **Frequency:**
-Observed consistently (100% of attempts) when not logged in and attempting to access account-gated features.
+Observed consistently (100% of attempts) when not logged in — every search submission produced the same silent non-response.
 
 **Current flow — step by step:**
 1. User opens irctc.co.in without logging in
-2. User navigates to a ticket/booking-related section
-3. User clicks the relevant option (e.g. view booking/ticket details)
-4. Page does not redirect, does not show an error, and does not prompt for login
-5. User clicks again, assuming it didn't register
-6. User remains on the same screen with no indication of what to do next
-7. User must independently realize they need to log in and navigate back to find the login option
+2. User enters "Chandigarh" in the From field — autocomplete works correctly
+3. User enters "Mumbai Central" in the To field — autocomplete works correctly
+4. User selects date (29/06/2026) and class (All Classes) — both register correctly
+5. User clicks "Search Trains"
+6. Nothing happens — no page change, no spinner, no error message
+7. User clicks "Search Trains" again, assuming it didn't register
+8. Same silent non-response repeats
 
 **Where exactly it breaks:**
-Step 4: The system has no guard-rail messaging or redirect logic for unauthenticated access to gated features. Instead of a clear "Please login to continue" prompt, the request fails silently.
+Step 5–6: The search submission handler does not execute (or fails silently) for unauthenticated sessions, with no fallback message such as "Please login to search trains." The user has no way to know whether the issue is their input, their connection, or the platform itself.
+
+**Screenshot:**
+![Problem 4](../assets/screenshots/problem-4.png)
 
 ---
 
-## Problem 5: Changing Class/Quota Does Not Refresh Availability or Seat Map [Self-Discovered]
+## Problem 5: Changing Class on Results Page Does Not Refresh Availability Data [Self-Discovered]
 
 **How I found it:**
-After logging in, while checking seat selection/availability for a train, I changed the class or quota option to compare alternatives. The page state did not update to reflect the new selection.
+After logging in, I searched Chandigarh → Mumbai Central and viewed the results page. I clicked the class dropdown (showing "All Classes") and switched between classes — including AC 3 Tier, Anubhuti Class, and others. Each time, the fare, availability dates, and waitlist/RAC numbers shown for "GOA SMPRK KRANT (12450)" stayed exactly the same (₹1895, WL14/WL11/WL4, RAC21/RAC12, "Updated 8 Minutes and 41 Seconds ago"), regardless of which class was selected in the dropdown.
 
 **What is broken:**
-When a user switches class or quota on the seat selection/availability screen, the displayed information (fare, seat availability, seat map) does not refresh. The screen continues showing data for the previously selected class/quota, giving the user inaccurate information without any indication that a refresh is needed.
+Selecting a different class from the class dropdown on the search results page does not trigger a refresh of the displayed availability data. The fare, waitlist status, and "last updated" timestamp remain frozen on whatever was loaded initially, even after multiple class changes (AC 3 Tier → Anubhuti Class → others).
 
 **Affected users:**
-Any user comparing options before booking — particularly users trying to find an available class/quota combination when their first choice is waitlisted, a very common scenario during high-demand travel periods.
+Any logged-in user comparing classes to find one with better availability — a near-universal action since the default search result rarely shows the user's preferred class with confirmed seats on the first load.
 
 **Frequency:**
-Observed consistently in this session — every attempt to switch class/quota produced no visible update, suggesting a high failure rate rather than an intermittent one.
+Observed consistently across 3+ class changes in a single session — the same stale data (₹1895, "Updated 8 Minutes and 41 Seconds ago") persisted through every switch, indicating a reliable, reproducible failure rather than an occasional glitch.
 
 **Current flow — step by step:**
-1. User logs in and navigates to a train's seat selection/availability screen
-2. Page loads showing seat map/availability for the default class and quota
-3. User selects a different class from the dropdown
-4. Page remains visually unchanged — same seat map, same fare, same availability numbers
-5. User assumes the click didn't register and clicks the dropdown again
-6. User selects quota change as well — still no visible update
-7. User cannot tell whether the system registered the change at all
+1. User logs in and searches Chandigarh → Mumbai Central for 29 Jun 2026
+2. Results page loads showing "AC 3 Tier (3A)" tab active, fare ₹1895, dates with WL14/WL11/WL4/RAC21/RAC12
+3. User opens the class dropdown (currently "Vistadome Non AC") and selects "Anubhuti Class (EA)"
+4. Page updates the dropdown label to "Anubhuti Class (E..." but the fare, waitlist numbers, and "Updated X ago" timestamp stay identical to step 2
+5. User selects a different class again
+6. Same fare (₹1895) and same waitlist data (WL14/WL11/WL4/RAC21/RAC12) persist
+7. User has no way to tell if the class change registered on the backend at all
 
 **Where exactly it breaks:**
-Step 4: The class/quota selection event does not trigger a re-fetch or re-render of the availability/seat data. The UI state is stuck on the initial load, so the user has no reliable way to compare options without manually reloading the entire page.
+Step 4: Selecting a new class updates the dropdown's visual label only — it does not trigger a re-fetch of availability/fare data for that class. The displayed numbers are leftover from the previous state, misleading the user into comparing identical-looking data across classes that are actually different products.
+
+**Screenshot:**
+![Problem 5](../assets/screenshots/problem-5.1.png)
+
+---
+
+## Problem 6: Page Freezes on "Modify Search" After Logging Out Mid-Session [Self-Discovered]
+
+**How I found it:**
+While viewing the search results page as a logged-in user, I logged out and then navigated back to the same results page. The page was still showing the same train results, but clicking anywhere — including "Modify Search" — caused the screen to show a "Please Wait..." overlay that never resolved.
+
+**What is broken:**
+After logging out mid-session and returning to a previously loaded results page, the page becomes unresponsive. Any interaction (clicking Modify Search, or other controls) triggers a "Please Wait..." loading overlay that does not complete or return any result, effectively freezing the page.
+
+**Affected users:**
+Any user who logs out while a results page is open in another tab or via back navigation, then tries to continue interacting with that page — a likely scenario for users managing sessions across multiple tabs or stepping away mid-search.
+
+**Frequency:**
+Observed consistently — every interaction attempt after logout-then-return produced the same stuck "Please Wait..." state with no timeout or error shown.
+
+**Current flow — step by step:**
+1. User is logged in, viewing search results for Chandigarh → Mumbai Central
+2. User logs out (in the same tab or session)
+3. User navigates back to the results page (e.g. via browser back button)
+4. Page still displays the old results, with the top bar reverted to "LOGIN / REGISTER"
+5. User clicks "Modify Search" intending to start a new search
+6. A "Please Wait..." overlay appears over the results
+7. The overlay does not disappear or resolve — page is stuck
+8. User clicks elsewhere, refreshes expectations, but the page remains frozen until a manual page reload
+
+**Where exactly it breaks:**
+Step 5–6: The "Modify Search" action depends on a session/auth token that is no longer valid post-logout. Instead of detecting this and redirecting to login or showing an error, the request hangs indefinitely behind a generic loading overlay, with no timeout or fallback messaging.
+
+**Screenshot:**
+![Problem 6](../assets/screenshots/problem-6.png)
 
 ---
