@@ -317,3 +317,225 @@ The results page actively listens for session/auth-state changes. The instant a 
 - Graceful degradation: if the auth-state listener itself fails to detect a logout, action endpoints still independently return 401 on stale tokens, so the user is never left in a permanently stuck state even if the frontend listener misses it
 
 ---
+
+
+
+---
+
+# Wireframes — All UI-Related Problems
+
+## Wireframe 1: Tatkal Virtual Queue Screen
+*Referenced in Feature Spec 1*
+
+```
+TATKAL QUEUE SCREEN — Mobile (375px)
+─────────────────────────────────────
+[ IRCTC Logo ]            [Profile icon]
+─────────────────────────────────────
+  YOU ARE IN THE QUEUE
+  ┌───────────────────────────────┐
+  │      QUEUE POSITION            │
+  │        #4,281                  │ ← Live position counter
+  │   Est. wait: ~9 minutes        │ ← Updates every few sec
+  │  ████████░░░░░░░░░░  Progress  │ ← Progress bar
+  └───────────────────────────────┘
+
+  ✅ Train: 12450 Goa SMPRK KRANT
+  ✅ Class: Sleeper | Quota: Tatkal
+  ✅ Passenger details: Saved
+
+  [ Leave Queue ]
+
+  ─────────────────────────────────
+  Tip: Keep this tab open. You'll
+  get 90 seconds to complete
+  booking when it's your turn.
+
+  ── WHEN TURN ARRIVES ──
+  ┌───────────────────────────────┐
+  │  🔔 YOUR TURN!                 │
+  │  Complete booking in 0:87      │ ← 90-sec countdown
+  └───────────────────────────────┘
+  [ Continue to Payment → ]
+
+  ── IF SLOT EXPIRES (error state) ──
+  ┌───────────────────────────────┐
+  │  ⚠ Your slot expired           │
+  │  [ Rejoin Queue ]               │
+  └───────────────────────────────┘
+```
+*Annotation: Tap "Continue to Payment" → passenger details pre-filled, seat held for 90s. Tap "Rejoin Queue" on expiry → re-enters at back of current queue, not lost entirely.*
+
+*Changed from current UI: replaces the silent freeze + spinner with a persistent, live-updating queue position and a clear time-bound action window.*
+
+---
+
+## Wireframe 2: Persistent Search Filters
+*Referenced in Feature Spec 2*
+
+```
+SEARCH RESULTS PAGE — Desktop
+─────────────────────────────────────────────────────────
+[Logo]   [Search Bar: Chandigarh → Mumbai Central] [Modify]
+─────────────────────────────────────────────────────────
+ REFINE RESULTS          🟢 Live - Updated 3s ago    ← NEW
+ ┌─────────────┐
+ │ Sleeper (SL)│✓        2 Results for CHANDIGARH→MUMBAI
+ │ AC 3E       │✓
+ │ Available   │✓ ← Filter chip row (persists in URL)
+ └─────────────┘
+                         GOA SMPRK KRANT (12450)
+                         Sleeper (SL)   Available: 12  ← matches filter
+                         [ Book Now ]
+
+                         PASCHIM EXPRESS (12926)
+                         Sleeper (SL)   Available: 4
+                         [ Book Now ]
+
+ ── BACK NAVIGATION STATE ──
+ User clicks "Book Now" → back button →
+ SAME filters still checked, SAME live results shown
+ (no reset to "All Classes")
+```
+*Annotation: Filter chips read/write directly to URL query params (?class=SL&avail=true). "Live - Updated Xs ago" label builds trust that results aren't stale.*
+
+*Changed from current UI: filters no longer reset on back-navigation; results always match the filter criteria shown.*
+
+---
+
+## Wireframe 3: Seat Selection Confirmation Banner
+*Referenced in Feature Spec 3*
+
+```
+SEAT MAP SCREEN — Mobile
+─────────────────────────────────────
+[ ← Back ]   Select Your Seat
+─────────────────────────────────────
+  ┌─────────────────────────────┐
+  │ 🟦 Lower Berth #34 SELECTED ✓ │ ← NEW persistent banner
+  │    Held for 9:42             │ ← Countdown, builds urgency
+  └─────────────────────────────┘
+
+  [Seat Map Grid]
+  ▢ ▢ 🟦 ▢ ▢
+  ▢ ▢ ▢ ▢ ▢
+  (🟦 = your selection, ▢ = available, ⬛ = booked)
+
+  [ Proceed to Passenger Details → ]
+
+── PASSENGER DETAILS SCREEN (banner persists) ──
+─────────────────────────────────────
+  ┌─────────────────────────────┐
+  │ 🟦 Lower Berth #34 SELECTED ✓ │ ← Same banner, carried over
+  │    Held for 8:15             │
+  └─────────────────────────────┘
+  Passenger Name: [______]
+  Seat Preference: Lower Berth #34 (locked)  ← was "Auto" before
+
+── ERROR STATE: HOLD EXPIRED ──
+  ┌─────────────────────────────┐
+  │ ⚠ Seat hold expired           │
+  │ [ Extend Hold ] [ Reselect ]  │
+  └─────────────────────────────┘
+```
+*Annotation: Banner is a persistent component rendered above every screen in the booking flow once a seat is selected, reading from shared session state instead of local component state.*
+
+*Changed from current UI: seat selection no longer silently resets to "Auto" — it's visibly locked and confirmed at every step.*
+
+---
+
+## Wireframe 4: Logged-Out Search Feedback
+*Referenced in Feature Spec 4*
+
+```
+HOMEPAGE SEARCH FORM — Logged Out
+─────────────────────────────────────
+[LOGIN/REGISTER]              [Logo]
+─────────────────────────────────────
+  BOOK TICKET
+  From: [Chandigarh        ]
+  To:   [Mumbai Central    ]
+  Date: [29/06/2026]  Class: [All]
+  [ Search Trains ]
+
+── CURRENT (BROKEN): nothing happens ──
+
+── PROPOSED FIX A (preferred): search just works ──
+  → Results load normally, no login needed
+  → User browses freely, login only required at "Book Now"
+
+── PROPOSED FIX B (if login truly required): ──
+  ┌─────────────────────────────────┐
+  │ ℹ Please login to search trains  │ ← Inline banner, NEW
+  │   [ Login Now ]                  │
+  └─────────────────────────────────┘
+```
+*Annotation: Banner appears immediately inline below the search form, not as a separate page — keeps the user's entered search criteria intact so they don't have to re-type after logging in.*
+
+*Changed from current UI: replaces total silence with either working search (preferred) or explicit, actionable feedback.*
+
+---
+
+## Wireframe 5: Class Change Live Refresh
+*Referenced in Feature Spec 5*
+
+```
+SEARCH RESULTS — Class Comparison Card
+─────────────────────────────────────────────
+GOA SMPRK KRANT (12450)
+[Sleeper (SL)] [AC 3E] [AC 3 Tier ▼] [AC 2 Tier] [AC 1A]
+                        ↑ Active tab
+
+── ON CLASS CHANGE (loading state, NEW) ──
+┌───────────────────────────────────┐
+│  ░░░░░░░░░░  Loading AC 2 Tier...  │ ← Skeleton loader
+│  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │
+└───────────────────────────────────┘
+
+── AFTER REFRESH (correct data shown) ──
+┌───────────────────────────────────┐
+│  AC 2 Tier (2A)                    │
+│  Fare: ₹2,450                      │ ← Updated, was stuck at ₹1895
+│  WL 6 | Updated just now ✓         │ ← Fresh timestamp
+└───────────────────────────────────┘
+
+── ERROR STATE ──
+┌───────────────────────────────────┐
+│  ⚠ Couldn't load AC 2 Tier data     │
+│  [ Tap to Retry ]                  │
+└───────────────────────────────────┘
+```
+*Annotation: Tapping a class tab triggers an immediate API re-fetch scoped to that class; skeleton loader prevents the illusion that old data is still valid.*
+
+*Changed from current UI: every class tab now shows its own accurate fare/availability instead of frozen data from the first class loaded.*
+
+---
+
+## Wireframe 6: Session-Aware Results Page
+*Referenced in Feature Spec 6*
+
+```
+SEARCH RESULTS PAGE — After Logout Detected
+─────────────────────────────────────────────
+[LOGIN/REGISTER]              [Logo]
+─────────────────────────────────────
+┌─────────────────────────────────────┐
+│ ⚠ Your session has ended.             │ ← NEW banner, replaces silence
+│   Please login to continue browsing. │
+│   [ Login ]                          │
+└─────────────────────────────────────┘
+
+2 Results for CHANDIGARH → MUMBAI CENTRAL
+(results still visible, but actions disabled)
+
+[ Modify Search ]  ← greyed out / disabled, not clickable
+GOA SMPRK KRANT (12450)
+[ Book Now ]  ← greyed out / disabled, not clickable
+
+── AFTER RE-LOGIN ──
+Banner disappears, same search results restored
+(search params preserved via URL, no re-search needed)
+```
+*Annotation: Auth-state listener checks token validity on an interval and on cross-tab logout events; disables interactive elements immediately rather than letting them hang on click.*
+
+*Changed from current UI: replaces the indefinite "Please Wait..." freeze with an immediate, clear, actionable banner.*
