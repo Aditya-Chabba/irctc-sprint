@@ -63,3 +63,35 @@ Filter-result mismatch rate (filtered results that don't match the filter criter
 What happens if live availability changes between when results load and when the user clicks a train — the train list should show a brief "Refreshing..." state on click rather than silently booking against stale data. What happens on slow/2G connections where live fetches take longer — a loading skeleton should replace the abrupt "page reload" behavior currently seen. This depends on the Railway backend's actual availability API response time, which IRCTC does not control, so a reasonable timeout (e.g. 5 seconds) with graceful fallback to last-known-good data is needed rather than an indefinite spinner.
 
 ---
+
+
+
+## Spec 3: Reliable Seat Selection State Persistence
+*Addresses Part A Problem 3: Seat Selection Resets Randomly*
+
+### Problem Statement
+When a user selects a specific seat (e.g. a lower berth for an elderly passenger) in the seat map and proceeds to the next step, the selection is lost in 15-25% of sessions, rising to 35% on mobile, due to the seat state not passing correctly between the seat map component and the passenger details form. This disproportionately harms families with elderly/disabled members and anyone with a specific medical or comfort need, since they end up with an "Auto" assignment that could place them anywhere on the train.
+
+### Proposed Solution
+The selected seat is locked and visibly confirmed the moment the user clicks it, with a persistent confirmation banner ("Lower Berth #34 selected ✓") that follows the user through every subsequent screen until booking completes. If the selection cannot be carried forward for any reason, the user is shown an explicit warning before proceeding, rather than silently defaulting to "Auto."
+
+### Technical Implementation Plan
+**System components affected:** Frontend (seat map component, passenger details form, shared state layer), Backend API (seat-hold/lock endpoint), no major database schema changes beyond adding a short-lived hold record.
+
+**New data requirements:** A `seat_hold` table/collection with fields: `session_id`, `train_id`, `seat_number`, `class`, `held_at`, `expires_at` (e.g. 10-minute hold) to guarantee the seat stays reserved for that user across screens until booking completes or the hold expires.
+
+**API changes:**
+- `POST /api/seats/hold` — Request body: `{train_id, class, seat_number, session_id}` — Response: `{hold_confirmed: true, expires_at}` — called the instant a seat is clicked in the seat map.
+- `GET /api/seats/hold/status` — Response: `{seat_number, status, time_remaining}` — used by the passenger details page to confirm and display the held seat instead of re-deriving it from scratch.
+
+**Frontend state changes:** Seat selection moves from local component-only state (lost on navigation/re-render) to a shared session-level state (e.g. React Context or global state) that the passenger details page reads directly, plus a persistent visual confirmation banner across screens. On mobile specifically, the re-render that currently clears local state is fixed by reading from this shared state instead of resetting component state on navigation.
+
+**Third-party services:** None required.
+
+### Success Metrics
+Seat selection persistence failure rate drops from 15-25% (35% on mobile) to under 3% across all devices. Support complaints related to "wrong seat assigned" or "got Auto instead of my selection" decrease measurably. Mobile-specific failure rate gap closes to within 2% of desktop, confirming the re-render bug is resolved.
+
+### Edge Cases and Constraints
+What happens if two users try to hold the same seat simultaneously — the hold endpoint must be atomic (first hold wins, second gets an immediate "seat just taken" message rather than a silent failure). What happens if a user's hold expires while filling passenger details — they should get a clear warning with a one-click "extend hold" or "reselect seat" option rather than discovering the loss only at payment. This depends on the Railway backend's seat inventory system actually honoring holds in real time, which IRCTC's backend may not natively support — a fallback design (client-side optimistic locking with backend reconciliation) should be planned in case true server-side seat-holding isn't available.
+
+---
