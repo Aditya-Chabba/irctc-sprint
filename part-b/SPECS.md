@@ -95,3 +95,34 @@ Seat selection persistence failure rate drops from 15-25% (35% on mobile) to und
 What happens if two users try to hold the same seat simultaneously — the hold endpoint must be atomic (first hold wins, second gets an immediate "seat just taken" message rather than a silent failure). What happens if a user's hold expires while filling passenger details — they should get a clear warning with a one-click "extend hold" or "reselect seat" option rather than discovering the loss only at payment. This depends on the Railway backend's seat inventory system actually honoring holds in real time, which IRCTC's backend may not natively support — a fallback design (client-side optimistic locking with backend reconciliation) should be planned in case true server-side seat-holding isn't available.
 
 ---
+
+
+
+## Spec 4: Clear Feedback for Logged-Out Search Attempts
+*Addresses Part A Problem 4: Logged-Out Users Get No Feedback When Searching for Trains*
+
+### Problem Statement
+When a logged-out user fills in valid search criteria (source, destination, date, class) and clicks "Search Trains," nothing happens — no redirect, no error message, no login prompt. This affects every first-time or logged-out visitor trying to evaluate train options before registering, a very common pattern, and the silent failure (observed in 100% of attempts) leaves users unable to tell if it's their input, their connection, or the platform that's broken.
+
+### Proposed Solution
+Logged-out users can search and view train results exactly as logged-in users do — search should never require login at all, since IRCTC's own stated flow only requires login to book, not to search. If account-gated, clicking "Search Trains" while logged out immediately shows a clear inline message ("Please login to search trains") with a one-click login button, instead of doing nothing.
+
+### Technical Implementation Plan
+**System components affected:** Frontend (search submission handler, auth-state check), Backend API (search endpoint auth requirements), no database changes needed.
+
+**New data requirements:** None.
+
+**API changes:**
+- `GET /api/trains/search` — clarify and enforce: this endpoint should not require an auth token at all (since search is pre-booking, account-agnostic information). If login truly is required by design, the endpoint should return a clear `401 Unauthorized` with a descriptive error body `{error: "login_required", message: "Please login to search trains"}` instead of failing silently.
+
+**Frontend state changes:** The search submission handler checks auth state before calling the API; if unauthenticated and login is required, it shows an inline modal/banner with a "Login" CTA instead of submitting a request that silently fails. If login is not actually required, simply removing any auth gating on this action resolves the issue entirely.
+
+**Third-party services:** None required.
+
+### Success Metrics
+Search submission "silent failure" rate (defined as a click producing no UI response within 2 seconds) drops from 100% (for logged-out users) to 0%. Conversion from logged-out search attempt to successful registration/login increases, since users now have a clear path forward instead of abandoning silently.
+
+### Edge Cases and Constraints
+What happens if the user's session expires mid-search (was logged in, becomes logged out) — the same clear messaging should apply rather than a different silent-failure path. This is a low-effort, high-clarity fix that depends only on internal frontend/backend logic — no Railway backend dependency, since this is purely an auth-gating and feedback issue, not a data-availability one.
+
+---
