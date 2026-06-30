@@ -1,50 +1,78 @@
-# IRCTC 2×2 Impact vs Effort Matrix — Part B
+# Impact vs Effort Matrix
 
-## Pre-Placement Scoring Table
+## The Matrix
 
-| # | Solution | Users Affected | Severity | Core Flow? | Consequence | Components Touched | New Infra Needed | Risk | Backend Dependency |
-|---|----------|----------------|----------|------------|--------------|---------------------|-------------------|------|---------------------|
-| 1 | Tatkal Virtual Queue | 20-40 lakh daily | Critical | Yes (core) | Trip missed, money/time lost | Frontend + Backend + DB + Redis | Yes (queue infra) | Medium-High | High |
-| 2 | Persistent Search Filters | 8 crore (all users) | Medium | Yes (core) | Time wasted, frustration | Frontend + Backend | No | Low | Medium |
-| 3 | Seat Selection Persistence | 30-40% of bookings | High | Yes (core) | Wrong seat, accessibility harm | Frontend + Backend + DB | Minor (hold table) | Medium | Medium-High |
-| 4 | Logged-Out Search Feedback | All logged-out visitors | Medium | Peripheral (pre-booking) | Frustration, drop-off | Frontend + Backend (minor) | No | Low | Low |
-| 5 | Class Change Live Refresh | All users comparing classes | Medium | Yes (core) | Misleading data, bad decisions | Frontend only | No | Low | Low |
-| 6 | Session-Aware Results Page | Users w/ multi-tab sessions | Medium | Peripheral (edge case) | Page freeze, lost time | Frontend + Backend (minor) | No | Low | Low |
-| AI | Waitlist Confirmation Predictor | Anyone offered WL | High | Yes (core) | Informed decision-making | Frontend + Backend + ML model | Yes (ML pipeline) | Medium | Medium |
+|                   | Low Effort                                                  | High Effort                                                                 |
+|-------------------|---------------------------------------------------------------|------------------------------------------------------------------------------|
+| **High Impact**   | Spec 2: Persistent Search Filters<br>Spec 5: Class Change Live Refresh | Spec 1: Tatkal Virtual Queue<br>Spec 3: Seat Selection Persistence<br>AI Feature: Waitlist Confirmation Predictor |
+| **Low Impact**    | Spec 4: Logged-Out Search Feedback<br>Spec 6: Session-Aware Results Page | *(none)* |
+
+## How I Scored Each Dimension
+
+### Impact Scoring (1–5)
+I scored Impact based on:
+- Number of users affected (from Part A frequency analysis)
+- Whether the problem is in the core booking flow
+- Severity of consequence for the user
+
+| Solution | Users Affected (Part A) | Core Flow? | Consequence | Impact Score |
+|----------|--------------------------|------------|--------------|--------------|
+| Spec 1: Tatkal Virtual Queue | 20-40 lakh daily | Yes | Trip missed, money/time lost | 5 |
+| Spec 2: Persistent Search Filters | 8 crore (all users) | Yes | Time wasted, frustration | 4 |
+| Spec 3: Seat Selection Persistence | 30-40% of bookings | Yes | Wrong seat, accessibility harm | 5 |
+| Spec 4: Logged-Out Search Feedback | All logged-out visitors | Peripheral (pre-booking) | Frustration, drop-off | 2 |
+| Spec 5: Class Change Live Refresh | All users comparing classes | Yes | Misleading data, bad decisions | 4 |
+| Spec 6: Session-Aware Results Page | Users w/ multi-tab sessions | Peripheral (edge case) | Page freeze, lost time | 2 |
+| AI: Waitlist Confirmation Predictor | Anyone offered WL | Yes | Informed decision-making | 4 |
+
+### Effort Scoring (1–5)
+I scored Effort based on:
+- Number of system components touched
+- Whether new infrastructure is required
+- Risk of breaking existing flows
+- Railway API dependencies
+
+| Solution | Components Touched | New Infra? | Risk | Backend Dependency | Effort Score |
+|----------|---------------------|------------|------|----------------------|--------------|
+| Spec 1: Tatkal Virtual Queue | Frontend + Backend + DB + Redis | Yes (queue infra) | Medium-High | High | 5 |
+| Spec 2: Persistent Search Filters | Frontend + Backend | No | Low | Medium | 2 |
+| Spec 3: Seat Selection Persistence | Frontend + Backend + DB | Minor (hold table) | Medium | Medium-High | 4 |
+| Spec 4: Logged-Out Search Feedback | Frontend + Backend (minor) | No | Low | Low | 1 |
+| Spec 5: Class Change Live Refresh | Frontend only | No | Low | Low | 1 |
+| Spec 6: Session-Aware Results Page | Frontend + Backend (minor) | No | Low | Low | 2 |
+| AI: Waitlist Confirmation Predictor | Frontend + Backend + ML pipeline | Yes (ML infra) | Medium | Medium | 4 |
+
+---
+
+## Placement Justifications
+
+### Spec 1: Tatkal Virtual Queue — Major Project (High Impact, High Effort)
+This is the single highest-impact fix, directly addressing a daily crash affecting 20-40 lakh users and the platform's most reputationally damaging failure (Part A frequency: daily at 10:00 AM). It requires new queue infrastructure (Redis), new API endpoints, and careful handling of extreme concurrency, making the effort genuinely high per the technical plan. This needs dedicated sprint planning and proper engineering resourcing rather than a quick patch.
+
+### Spec 2: Persistent Search Filters — Quick Win (High Impact, Low Effort)
+This affects all 8 crore registered users on nearly every search, one of the highest-reach problems documented in Part A. The fix only requires frontend state management changes and live query parameters per the technical plan — no new infrastructure or database changes. This is a clear do-first item: maximum reach for minimal engineering cost.
+
+### Spec 3: Seat Selection Persistence — Major Project (High Impact, High Effort)
+This affects 30-40% of all booking attempts with a severe consequence for affected users — disabled or elderly passengers ending up in inaccessible seats, per Part A's documentation. It requires backend seat-hold infrastructure, new database records, and atomic concurrency handling, making the effort non-trivial per the technical plan. The accessibility implications justify the investment despite the complexity.
+
+### Spec 4: Logged-Out Search Feedback — Fill-In (Low Impact, Low Effort)
+This only affects users browsing before logging in, a narrower and less business-critical segment than logged-in bookers actively trying to complete a purchase. The fix is small — an auth-state check before form submission — with no new infrastructure required. This is cheap enough to slot into spare sprint capacity as a polish item rather than a core-metric mover.
+
+### Spec 5: Class Change Live Refresh — Quick Win (High Impact, Low Effort)
+Every user comparing classes hits this bug, and it directly causes booking decisions based on stale, misleading fare and availability data (observed consistently in Part A testing). The fix is frontend-only — wiring an existing API call to a dropdown's onChange handler — with zero new infrastructure needed. This is essentially a one-sprint fix with outsized impact on user trust in the platform's data.
+
+### Spec 6: Session-Aware Results Page — Fill-In (Low Impact, Low Effort)
+This addresses an edge case (logout while on results page, often via multi-tab usage) affecting a narrower slice of users than the other five problems. The fix is a small frontend auth-listener addition with no new infrastructure required. It improves polish and avoids a confusing dead-end but doesn't move core booking metrics significantly.
+
+### AI Feature: Waitlist Confirmation Predictor — Major Project (High Impact, High Effort)
+This improves decision-making for a large share of bookings (anyone offered a WL seat) and directly reduces the blind-gamble repeat-booking behavior that worsens Tatkal server load (connecting back to Problem 1's impact). Building and training the ML model, sourcing historical PNR/cancellation data, and integrating a new prediction pipeline is genuinely high effort compared to a pure UI fix. This should be planned as a dedicated project with data science involvement, not bundled into a quick sprint.
 
 ---
 
-## Quadrant Placements
-
-### 🚀 Quick Wins (High Impact, Low Effort)
-
-**Solution 2 — Persistent Search Filters**
-Affects all 8 crore registered users on nearly every search, making it one of the highest-reach fixes in this set. The fix only requires frontend state management changes and passing filters as live query parameters — no new infrastructure or database changes. Low risk, low backend dependency, and immediately measurable via reduced filter-mismatch rate, making this a clear do-first item.
-
-**Solution 5 — Class Change Live Refresh**
-Every user comparing classes hits this bug, and it directly causes users to make booking decisions on stale, misleading data. The fix is frontend-only — wiring an existing API call to a dropdown's onChange handler — with zero new infrastructure or backend changes needed. This is essentially a one-sprint fix with outsized impact on trust in the platform's data.
-
-### 🏗 Major Projects (High Impact, High Effort)
-
-**Solution 1 — Tatkal Virtual Queue**
-This is the single highest-impact fix in the set, directly addressing a daily crash affecting 20-40 lakh users and the platform's most reputationally damaging failure. It requires new infrastructure (Redis-backed queue), new API endpoints, and careful handling of extreme concurrency, making it genuinely high-effort. This needs proper sprint planning and dedicated engineering resourcing rather than a quick patch.
-
-**Solution 3 — Seat Selection Persistence**
-This affects 30-40% of all booking attempts and has a severe consequence for affected users (disabled or elderly passengers ending up in inaccessible seats), justifying high impact. It requires backend seat-hold infrastructure, new database records, and careful handling of concurrent seat-hold conflicts, making the effort non-trivial. The accessibility implications make this worth the investment despite the complexity.
-
-**AI — Waitlist Confirmation Predictor**
-This feature directly improves decision-making for a huge share of bookings (anyone offered a WL seat) and reduces blind-gamble repeat-booking behavior that worsens Tatkal server load. Building and training an ML model, sourcing historical data, and integrating a new prediction pipeline is genuinely high effort compared to a pure UI fix. This should be planned as a dedicated project with its own data science involvement, not bundled into a quick sprint.
-
-### 🧩 Fill-Ins (Low Impact, Low Effort)
-
-**Solution 4 — Logged-Out Search Feedback**
-This only affects users browsing before logging in, a smaller and less business-critical segment than logged-in bookers, so impact is moderate-to-low relative to the others. The fix is small (an auth-state check before form submission) with no new infrastructure, making it cheap enough to slot into spare sprint capacity. It's a nice-to-have polish item rather than a core-metric mover.
-
-**Solution 6 — Session-Aware Results Page**
-This addresses an edge case (logout while on results page, often via multi-tab usage) that affects a narrower slice of users than the other problems. The fix is a small frontend auth-listener addition with no new infrastructure, making it low-cost to implement whenever capacity allows. It improves polish and avoids a confusing dead-end but doesn't move core booking metrics significantly.
-
-### ❌ Time Sinks (Low Impact, High Effort)
-
-*No solutions placed in this quadrant.* All 6 Part A problems and the AI feature were chosen specifically because they touch real, frequent pain points with a defensible value proposition — none of them represent low-value, high-cost work. This is intentional: low-value-high-cost ideas were filtered out at the discovery stage rather than carried into Part B.
-
----
+## Recommended Sprint Order
+1. **Spec 2: Persistent Search Filters** — Highest reach (all 8 crore users), lowest effort; ships fastest and builds team momentum.
+2. **Spec 5: Class Change Live Refresh** — Equally low effort, high impact; can be done in parallel with Spec 2 since it only touches frontend.
+3. **Spec 1: Tatkal Virtual Queue** — Highest single-problem impact; needs its own dedicated sprint given the new infrastructure required.
+4. **Spec 3: Seat Selection Persistence** — High impact on accessibility-critical users; scheduled after the queue work since both touch booking-flow infrastructure and can share learnings.
+5. **AI: Waitlist Confirmation Predictor** — High value but depends on having clean historical data pipelines; best sequenced after the core booking flow fixes (1 and 3) stabilize, since reliable booking data improves the model's training set.
+6. **Spec 4: Logged-Out Search Feedback** and **Spec 6: Session-Aware Results Page** — Low-effort fill-ins, slotted in whenever spare capacity exists between the above priorities.
