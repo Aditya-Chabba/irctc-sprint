@@ -126,3 +126,34 @@ Search submission "silent failure" rate (defined as a click producing no UI resp
 What happens if the user's session expires mid-search (was logged in, becomes logged out) — the same clear messaging should apply rather than a different silent-failure path. This is a low-effort, high-clarity fix that depends only on internal frontend/backend logic — no Railway backend dependency, since this is purely an auth-gating and feedback issue, not a data-availability one.
 
 ---
+
+
+
+## Spec 5: Live Refresh on Class/Quota Change
+*Addresses Part A Problem 5: Class Change Doesn't Refresh Availability*
+
+### Problem Statement
+On the search results page, switching the class dropdown (e.g. AC 3 Tier to Anubhuti Class) updates the dropdown label but leaves the fare, waitlist numbers, and "last updated" timestamp frozen on the previous class's data — observed consistently across multiple class switches in testing. Every logged-in user comparing classes to find better availability is affected, since the default search result rarely shows the user's preferred class with confirmed seats on first load, and the stale data actively misleads users into comparing identical-looking numbers across genuinely different products.
+
+### Proposed Solution
+Selecting a new class or quota immediately triggers a visible loading state on the fare/availability card, followed by a live re-fetch showing the correct fare, waitlist status, and a fresh "Updated just now" timestamp for that specific class. The user always sees data that matches the class currently selected in the dropdown — no stale carryover.
+
+### Technical Implementation Plan
+**System components affected:** Frontend (class/quota dropdown change handler, results card re-render logic), Backend API (per-class availability fetch), no database schema changes needed.
+
+**New data requirements:** None — this is a data-binding fix, not a new data model.
+
+**API changes:**
+- `GET /api/trains/{train_id}/availability?class=3A&quota=GN` — existing endpoint, but the frontend must now call it on every class/quota dropdown change rather than only on initial page load.
+
+**Frontend state changes:** The class dropdown's `onChange` handler is wired to trigger a re-fetch of availability data scoped to the newly selected class/quota, replacing the current behavior where only the dropdown's visual label updates. A loading skeleton or spinner shows briefly during the re-fetch so the user knows new data is loading rather than assuming nothing happened.
+
+**Third-party services:** None required.
+
+### Success Metrics
+Stale-data display rate after a class/quota change drops from ~100% (observed) to 0% — every class switch must produce a corresponding data refresh. User complaints or support tickets referencing "fare didn't update" or "wrong seat availability shown" decrease measurably.
+
+### Edge Cases and Constraints
+What happens if the re-fetch is slow on weak connections — the previous class's data should remain visible but visually dimmed/marked stale ("Showing AC 3 Tier data while loading Anubhuti Class...") rather than blanking out entirely. What happens if the user rapidly switches classes multiple times before any fetch completes — only the most recent request's response should update the UI (request cancellation/debouncing needed) to avoid race conditions showing the wrong class's data.
+
+---
