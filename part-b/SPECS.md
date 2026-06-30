@@ -2,6 +2,21 @@
 
 ---
 
+
+
+## Peer Review Notes
+
+Presented Feature Spec 1 (Tatkal Virtual Queue) and Feature Spec 2 (Persistent Search Filters) to a peer reviewer acting as a skeptical stakeholder. The following challenges were raised and incorporated into the specs below:
+
+1. **Queue depth vs actual seat availability (Spec 1):** Reviewer asked what happens when queue position is far beyond realistic seat count (e.g. position #48,000 for 200 seats) — users would wait blindly only to be rejected. Added a constraint requiring the queue to surface an honest estimate upfront.
+2. **90-second window fairness (Spec 1):** Reviewer questioned whether 90 seconds unfairly penalizes less tech-savvy users (slow UPI apps, hesitant typing). Added a one-time 30-second grace extension to balance fairness across the queue with real-world usability.
+3. **Subtlety of "live data" feedback (Spec 2):** Reviewer noted most users don't read small timestamp text like "Updated 3s ago." Added a requirement for a visible animated/highlighted confirmation instead of relying on text alone.
+4. **Effort estimate assumption (Spec 2):** Reviewer challenged the "low effort" label, asking if backend support for query-parameter filtering was actually confirmed. Added a constraint flagging this as an assumption that needs backend verification before committing to a single-sprint timeline.
+
+---
+
+
+
 ## Feature Spec 1: Tatkal Booking Virtual Queue
 
 ### Problem Statement
@@ -59,6 +74,9 @@ When a user clicks "Book Now" at or near 10:00 AM, instead of hitting the overlo
 - This depends on Railway backend APIs for actual seat allocation, which IRCTC does not fully control — the queue can guarantee fair ordering for attempts but cannot guarantee seat availability if the backend's own quota check fails independently
 - Graceful degradation: if the queue service itself goes down, the system should fall back to the current direct-booking flow rather than blocking all bookings entirely
 
+- If queue depth exceeds realistic seat availability (e.g. 200 seats but 50,000 people in queue), the system must show an honest estimate upfront: "Approx. 200 seats available — queue position #48,000 is unlikely to confirm" rather than letting users wait blindly only to be told "no seats" after a long wait.
+- The 90-second window may be too strict for less tech-savvy users (slow UPI apps, hesitant typing). A one-time 30-second grace extension (auto-offered once per session, not infinite) should be added so a single slip doesn't cost the user their slot entirely.
+
 ---
 
 ## Feature Spec 2: Persistent, Reliable Search Filters
@@ -111,6 +129,9 @@ Filters are applied against live, freshly-fetched data rather than a cached snap
 - What happens on slow/2G connections — a loading skeleton replaces the abrupt "page reload" currently seen
 - Depends on Railway backend's availability API response time, which IRCTC does not control — a 5-second timeout with graceful fallback to last-known-good data is needed
 - Graceful degradation: if live fetch fails entirely, show last-known results with a clear "could not refresh" warning rather than a blank page
+
+- Relying on a small "Updated Xs ago" text is not sufficient feedback for most users, who don't read fine print. A brief animated pulse or highlight on the results list itself should confirm a refresh happened.
+- The "low effort" estimate assumes the backend already supports query-parameter-based filtering at the API level. If this requires backend rework, this could shift from a frontend-only fix to a frontend + backend effort — this should be verified with backend engineers before committing to a single-sprint timeline.
 
 ---
 
@@ -366,7 +387,6 @@ TATKAL QUEUE SCREEN — Mobile (375px)
 ```
 *Annotation: Tap "Continue to Payment" → passenger details pre-filled, seat held for 90s. Tap "Rejoin Queue" on expiry → re-enters at back of current queue, not lost entirely.*
 
-*Changed from current UI: replaces the silent freeze + spinner with a persistent, live-updating queue position and a clear time-bound action window.*
 
 ---
 
@@ -399,7 +419,6 @@ SEARCH RESULTS PAGE — Desktop
 ```
 *Annotation: Filter chips read/write directly to URL query params (?class=SL&avail=true). "Live - Updated Xs ago" label builds trust that results aren't stale.*
 
-*Changed from current UI: filters no longer reset on back-navigation; results always match the filter criteria shown.*
 
 ---
 
@@ -440,7 +459,6 @@ SEAT MAP SCREEN — Mobile
 ```
 *Annotation: Banner is a persistent component rendered above every screen in the booking flow once a seat is selected, reading from shared session state instead of local component state.*
 
-*Changed from current UI: seat selection no longer silently resets to "Auto" — it's visibly locked and confirmed at every step.*
 
 ---
 
@@ -472,7 +490,6 @@ HOMEPAGE SEARCH FORM — Logged Out
 ```
 *Annotation: Banner appears immediately inline below the search form, not as a separate page — keeps the user's entered search criteria intact so they don't have to re-type after logging in.*
 
-*Changed from current UI: replaces total silence with either working search (preferred) or explicit, actionable feedback.*
 
 ---
 
@@ -507,7 +524,6 @@ GOA SMPRK KRANT (12450)
 ```
 *Annotation: Tapping a class tab triggers an immediate API re-fetch scoped to that class; skeleton loader prevents the illusion that old data is still valid.*
 
-*Changed from current UI: every class tab now shows its own accurate fare/availability instead of frozen data from the first class loaded.*
 
 ---
 
@@ -536,6 +552,4 @@ GOA SMPRK KRANT (12450)
 Banner disappears, same search results restored
 (search params preserved via URL, no re-search needed)
 ```
-*Annotation: Auth-state listener checks token validity on an interval and on cross-tab logout events; disables interactive elements immediately rather than letting them hang on click.*
 
-*Changed from current UI: replaces the indefinite "Please Wait..." freeze with an immediate, clear, actionable banner.*
