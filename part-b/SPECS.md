@@ -157,3 +157,34 @@ Stale-data display rate after a class/quota change drops from ~100% (observed) t
 What happens if the re-fetch is slow on weak connections — the previous class's data should remain visible but visually dimmed/marked stale ("Showing AC 3 Tier data while loading Anubhuti Class...") rather than blanking out entirely. What happens if the user rapidly switches classes multiple times before any fetch completes — only the most recent request's response should update the UI (request cancellation/debouncing needed) to avoid race conditions showing the wrong class's data.
 
 ---
+
+
+
+## Spec 6: Session-Aware Search Results Page
+*Addresses Part A Problem 6: Page Freezes on Modify Search After Logout*
+
+### Problem Statement
+When a logged-in user logs out while still viewing a search results page, the page does not detect the logout — it keeps showing stale, authenticated-looking content with no reload or warning. Clicking "Modify Search" afterward triggers a "Please Wait..." overlay that never resolves, leaving the page permanently stuck until a manual refresh. This affects any user managing sessions across tabs or stepping away mid-search, and was observed to fail consistently on every interaction attempt post-logout.
+
+### Proposed Solution
+The results page actively listens for session/auth-state changes. The instant a logout is detected (even from another tab), the page shows a clear banner ("Your session has ended — please login to continue") and disables stale actions like "Modify Search" until the user re-authenticates, rather than letting those actions hang indefinitely.
+
+### Technical Implementation Plan
+**System components affected:** Frontend (global auth-state listener, results page action handlers), Backend API (session validation on action endpoints), no database schema changes needed.
+
+**New data requirements:** None — this relies on existing session/token state, just needs to be actively checked rather than assumed valid.
+
+**API changes:**
+- All action endpoints triggered from the results page (e.g. `POST /api/trains/search` via Modify Search) should return a `401 Unauthorized` with `{error: "session_expired"}` immediately if the session token is invalid, instead of hanging or processing against a stale session.
+
+**Frontend state changes:** A global auth-state listener (e.g. checking token validity on an interval, or via a cross-tab storage event for logout) updates the UI the moment a logout is detected, regardless of which tab triggered it. Action buttons like "Modify Search" check auth state before sending requests; if expired, they show the re-login banner instead of firing a request that will hang.
+
+**Third-party services:** None required.
+
+### Success Metrics
+"Stuck loading after logout" failure rate drops from 100% (observed) to 0% — every post-logout interaction either redirects to login or shows a clear session-expired message within 2 seconds. Reduction in users needing a manual hard-refresh to recover from a frozen page, measured via reduced page-reload events in that flow.
+
+### Edge Cases and Constraints
+What happens if the logout was unintentional (e.g. accidental click) — the re-login banner should make it a one-click action to log back in and resume, rather than losing the user's search context entirely (search params should persist in the URL even after the session-expired state appears). This depends on the backend correctly invalidating sessions immediately on logout rather than allowing a grace period where old tokens still validate, which IRCTC's backend session management may or may not currently guarantee.
+
+---
