@@ -32,3 +32,34 @@ Tatkal booking completion rate increases from an estimated ~40% to 70%+ during t
 What happens if a user's internet drops while in queue — their slot should hold for a grace period (e.g. 15 seconds) before expiring, to allow reconnection. What happens if the queue itself becomes overloaded — the system needs a documented cap on queue depth with messaging ("Tatkal quota is full for this train") rather than infinite queuing. This depends on Railway backend APIs for actual seat allocation, which IRCTC does not fully control — the queue can guarantee fair ordering for *attempts* but cannot guarantee seat availability if the backend's own quota check fails independently.
 
 ---
+
+
+
+## Spec 2: Persistent, Reliable Search Filters
+*Addresses Part A Problem 2: Search Filters Do Not Work Reliably*
+
+### Problem Statement
+Train search filters (class, quota, availability, departure time) apply to a stale cached result set roughly 30-40% of the time, showing waitlisted trains under an "Available" filter and resetting to "All Classes" when the user navigates back. All 8 crore registered users searching for trains are affected, with senior citizens and first-time users most harmed since they trust filter output without double-checking — adding 8-15 minutes of manual scanning per search when filters fail.
+
+### Proposed Solution
+Filters are applied against live, freshly-fetched data rather than a cached snapshot, and filter selections persist in the URL/session state so they survive back-navigation and page reloads. The user selects a filter, sees results update only after confirming the data is current (a small "Live" indicator next to results), and returning to the page via back button preserves their exact filter selection without requiring reapplication.
+
+### Technical Implementation Plan
+**System components affected:** Frontend (filter state management, URL query params), Backend API (live availability fetch instead of cached), no database schema changes needed.
+
+**New data requirements:** No new persistent data needed — filter state is ephemeral, stored in URL query parameters (e.g. `?class=SL&avail=true&dep=morning`) and synced to browser history/session storage equivalent (React state, not localStorage, per artifact constraints) so back-navigation restores it.
+
+**API changes:**
+- `GET /api/trains/search?from=X&to=Y&date=Z&class=SL&availability=true` — filters are now passed as query parameters directly to the search endpoint, ensuring the backend returns pre-filtered, live data rather than the frontend filtering a stale cached response.
+
+**Frontend state changes:** Filter selections live in URL query state (using router state) instead of local-only component state, so refresh and back-navigation read filters directly from the URL rather than resetting to defaults. A "Live - Updated Xs ago" timestamp shown next to results to set accurate expectations.
+
+**Third-party services:** None required — this is a data-freshness and state-management fix, not a new capability.
+
+### Success Metrics
+Filter-result mismatch rate (filtered results that don't match the filter criteria) drops from ~30-40% to under 5%. Average time-to-find-preferred-train decreases from 8-15 minutes (manual scanning) to under 2 minutes. Filter-reset-on-back-navigation complaints drop to near zero, measured via reduced repeat filter-application clicks in session analytics.
+
+### Edge Cases and Constraints
+What happens if live availability changes between when results load and when the user clicks a train — the train list should show a brief "Refreshing..." state on click rather than silently booking against stale data. What happens on slow/2G connections where live fetches take longer — a loading skeleton should replace the abrupt "page reload" behavior currently seen. This depends on the Railway backend's actual availability API response time, which IRCTC does not control, so a reasonable timeout (e.g. 5 seconds) with graceful fallback to last-known-good data is needed rather than an indefinite spinner.
+
+---
